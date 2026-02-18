@@ -19,11 +19,11 @@ st.write("법인 영업을 위한 맞춤형 임대 수익 산출 도구입니다
 
 # --- 1. 담당자 정보 입력 (사이드바) ---
 st.sidebar.header("🏢 담당자 정보")
-# 회사명과 담당자명을 한 번에 입력받도록 수정
+# 회사명과 담당자명을 한 번에 입력받도록 설정
 sender_info = st.sidebar.text_input(
     "회사명 (담당자 성함 및 직함)", 
     value="KS 에너지 (OOO 팀장)",
-    help="PDF 견적서 '발신'란에 그대로 표시됩니다."
+    help="PDF 견적서 '발신'란에 표시될 정보입니다."
 )
 sender_contact = st.sidebar.text_input(
     "담당자 연락처", 
@@ -38,7 +38,7 @@ selected_items = st.multiselect("분석할 항목을 모두 선택하세요", li
 calc_results = {}
 
 if selected_items:
-    # 이전 버전처럼 상세하게 한 줄씩 입력받는 구조
+    # 각 항목별 상세 설정 박스
     for item in selected_items:
         with st.expander(f"🔍 {item} 상세 설정", expanded=True):
             conf = CONFIG[item]
@@ -91,12 +91,13 @@ if selected_items:
             pdf.cell(0, 20, txt="태양광 발전 사업 제안서", ln=True, align='R')
             pdf.ln(10)
             
-            # 발신/수신 정보 테이블
+            # 발신/수신 정보 테이블 (일자에 시간 추가)
+            current_now = datetime.now().strftime('%Y-%m-%d %H:%M') # 시간 형식 추가
             pdf.set_font('Nanum', '', 11)
             pdf.set_fill_color(245, 245, 245)
             pdf.cell(95, 10, txt=f" 수신: {client_name}", border=1, ln=0, fill=True)
             pdf.cell(95, 10, txt=f" 발신: {sender_info}", border=1, ln=1, fill=True)
-            pdf.cell(95, 10, txt=f" 일자: {datetime.now().strftime('%Y-%m-%d')}", border=1, ln=0)
+            pdf.cell(95, 10, txt=f" 일자: {current_now}", border=1, ln=0) # 시간 포함 출력
             pdf.cell(95, 10, txt=f" 연락처: {sender_contact}", border=1, ln=1)
             pdf.ln(10)
 
