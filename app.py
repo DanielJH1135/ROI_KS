@@ -1,10 +1,10 @@
 import streamlit as st
 from fpdf import FPDF
 import base64
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 import os
 
-# [설정] 사업 데이터 로직 (대표님과 상의 후 이 숫자들만 바꾸시면 됩니다)
+# [설정] 사업 데이터 로직 (추후 대표님 확인 후 수정하세요)
 CONFIG = {
     "주차장 태양광": {"unit": "면수(대)", "capa_per_unit": 3.5, "rent_per_kw": 25000},
     "축사/창고 태양광": {"unit": "면적(평)", "capa_per_unit": 0.5, "rent_per_kw": 20000},
@@ -19,7 +19,6 @@ st.write("법인 영업을 위한 맞춤형 임대 수익 산출 도구입니다
 
 # --- 1. 담당자 정보 입력 (사이드바) ---
 st.sidebar.header("🏢 담당자 정보")
-# 회사명과 담당자명을 한 번에 입력받도록 설정
 sender_info = st.sidebar.text_input(
     "회사명 (담당자 성함 및 직함)", 
     value="KS 에너지 (OOO 팀장)",
@@ -38,7 +37,6 @@ selected_items = st.multiselect("분석할 항목을 모두 선택하세요", li
 calc_results = {}
 
 if selected_items:
-    # 각 항목별 상세 설정 박스
     for item in selected_items:
         with st.expander(f"🔍 {item} 상세 설정", expanded=True):
             conf = CONFIG[item]
@@ -47,7 +45,6 @@ if selected_items:
             with col1:
                 val = st.number_input(f"{item} {conf['unit']}를 입력하세요", min_value=0, value=100, key=f"in_{item}")
             
-            # 계산 수행
             capa = val * conf['capa_per_unit']
             rent = capa * conf['rent_per_kw']
             calc_results[item] = {"용량": capa, "수익": rent, "입력값": val, "단위": conf['unit']}
@@ -71,79 +68,78 @@ if selected_items:
     # --- 4. PDF 견적서 발행 ---
     st.divider()
     st.subheader("📩 정식 견적서 발행")
-    client_name = st.text_input("수신처 (법인명 또는 성함)", value="제일축산 귀하")
+    # 수신처 예시 법인명을 삭제하고 빈 칸으로 설정
+    client_name = st.text_input("수신처 (법인명 또는 성함)", value="", placeholder="수신처를 입력해 주세요")
 
     if st.button("전문 PDF 견적서 생성 및 다운로드"):
-        try:
-            pdf = FPDF()
-            pdf.add_page()
-            
-            # 폰트 등록 (NanumGothic.ttf 파일 필수)
-            pdf.add_font('Nanum', '', 'NanumGothic.ttf')
-            
-            # 로고 삽입 (파일이 있을 경우)
-            if os.path.exists("logo.png"):
-                pdf.image("logo.png", x=10, y=8, w=30)
-            
-            # 타이틀
-            pdf.set_font('Nanum', '', 25)
-            pdf.set_text_color(40, 40, 40)
-            pdf.cell(0, 20, txt="태양광 발전 사업 제안서", ln=True, align='R')
-            pdf.ln(10)
-            
-            # 발신/수신 정보 테이블 (일자에 시간 추가)
-            current_now = datetime.now().strftime('%Y-%m-%d %H:%M') # 시간 형식 추가
-            pdf.set_font('Nanum', '', 11)
-            pdf.set_fill_color(245, 245, 245)
-            pdf.cell(95, 10, txt=f" 수신: {client_name}", border=1, ln=0, fill=True)
-            pdf.cell(95, 10, txt=f" 발신: {sender_info}", border=1, ln=1, fill=True)
-            pdf.cell(95, 10, txt=f" 일자: {current_now}", border=1, ln=0) # 시간 포함 출력
-            pdf.cell(95, 10, txt=f" 연락처: {sender_contact}", border=1, ln=1)
-            pdf.ln(10)
+        if not client_name:
+            st.error("수신처를 입력해야 견적서 생성이 가능합니다.")
+        else:
+            try:
+                pdf = FPDF()
+                pdf.add_page()
+                pdf.add_font('Nanum', '', 'NanumGothic.ttf')
+                
+                if os.path.exists("logo.png"):
+                    pdf.image("logo.png", x=10, y=8, w=30)
+                
+                pdf.set_font('Nanum', '', 25)
+                pdf.set_text_color(40, 40, 40)
+                pdf.cell(0, 20, txt="태양광 발전 사업 제안서", ln=True, align='R')
+                pdf.ln(10)
+                
+                # --- [수정] 한국 시간대(KST) 설정 ---
+                kst = timezone(timedelta(hours=9)) # UTC+9 설정
+                current_now = datetime.now(kst).strftime('%Y-%m-%d %H:%M')
+                
+                pdf.set_font('Nanum', '', 11)
+                pdf.set_fill_color(245, 245, 245)
+                pdf.cell(95, 10, txt=f" 수신: {client_name}", border=1, ln=0, fill=True)
+                pdf.cell(95, 10, txt=f" 발신: {sender_info}", border=1, ln=1, fill=True)
+                pdf.cell(95, 10, txt=f" 일자: {current_now}", border=1, ln=0)
+                pdf.cell(95, 10, txt=f" 연락처: {sender_contact}", border=1, ln=1)
+                pdf.ln(10)
 
-            # 상세 수익 내역 표
-            pdf.set_font('Nanum', '', 14)
-            pdf.set_text_color(0, 51, 102)
-            pdf.cell(0, 10, txt="[ 사업 규모 및 예상 수익 분석 ]", ln=True)
-            pdf.set_text_color(0, 0, 0)
-            pdf.set_font('Nanum', '', 10)
-            
-            # 표 헤더
-            pdf.set_fill_color(230, 230, 230)
-            pdf.cell(60, 10, "구분", border=1, align='C', fill=True)
-            pdf.cell(40, 10, "규모", border=1, align='C', fill=True)
-            pdf.cell(40, 10, "예상용량", border=1, align='C', fill=True)
-            pdf.cell(50, 10, "연간 임대료", border=1, align='C', fill=True)
-            pdf.ln()
-
-            for item, res in calc_results.items():
-                pdf.cell(60, 10, item, border=1)
-                pdf.cell(40, 10, f"{res['입력값']}{res['단위']}", border=1, align='C')
-                pdf.cell(40, 10, f"{res['용량']:.1f} kW", border=1, align='C')
-                pdf.cell(50, 10, f"{int(res['수익']):,} 원", border=1, align='R')
+                # 상세 내역 표
+                pdf.set_font('Nanum', '', 14)
+                pdf.set_text_color(0, 51, 102)
+                pdf.cell(0, 10, txt="[ 사업 규모 및 예상 수익 분석 ]", ln=True)
+                pdf.set_text_color(0, 0, 0)
+                pdf.set_font('Nanum', '', 10)
+                
+                pdf.set_fill_color(230, 230, 230)
+                pdf.cell(60, 10, "구분", border=1, align='C', fill=True)
+                pdf.cell(40, 10, "규모", border=1, align='C', fill=True)
+                pdf.cell(40, 10, "예상용량", border=1, align='C', fill=True)
+                pdf.cell(50, 10, "연간 임대료", border=1, align='C', fill=True)
                 pdf.ln()
 
-            # 총계
-            pdf.set_font('Nanum', '', 12)
-            pdf.cell(140, 12, "총 합계 수익 (연간)", border=1, align='C', fill=True)
-            pdf.cell(50, 12, f"{int(total_rent):,} 원", border=1, align='R', fill=True)
-            pdf.ln(20)
+                for item, res in calc_results.items():
+                    pdf.cell(60, 10, item, border=1)
+                    pdf.cell(40, 10, f"{res['입력값']}{res['단위']}", border=1, align='C')
+                    pdf.cell(40, 10, f"{res['용량']:.1f} kW", border=1, align='C')
+                    pdf.cell(50, 10, f"{int(res['수익']):,} 원", border=1, align='R')
+                    pdf.ln()
 
-            # 유의사항
-            pdf.set_font('Nanum', '', 9)
-            pdf.set_text_color(120, 120, 120)
-            pdf.multi_cell(0, 6, txt="* 본 제안서는 입력된 기초 데이터를 바탕으로 산출된 예상 결과입니다.\n"
-                                     "* 실제 시공 가능 여부 및 최종 용량은 현장 실사(구조 진단 등) 후 확정됩니다.\n"
-                                     "* 임대 조건 및 계약 관련 세부 사항은 별도 협의에 따릅니다.")
+                pdf.set_font('Nanum', '', 12)
+                pdf.cell(140, 12, "총 합계 수익 (연간)", border=1, align='C', fill=True)
+                pdf.cell(50, 12, f"{int(total_rent):,} 원", border=1, align='R', fill=True)
+                pdf.ln(20)
 
-            # 다운로드 버튼 생성
-            pdf_bytes = pdf.output()
-            b64 = base64.b64encode(pdf_bytes).decode()
-            href = f'<a href="data:application/pdf;base64,{b64}" download="Solar_Proposal_{client_name}.pdf" style="text-decoration:none;"><button style="width:100%; padding:15px; background-color:#1E88E5; color:white; border:none; border-radius:10px; font-size:18px; cursor:pointer; font-weight:bold;">📥 전문 견적서 PDF 다운로드</button></a>'
-            st.markdown(href, unsafe_allow_html=True)
-            st.success("견적서 작성이 완료되었습니다.")
+                # 유의사항
+                pdf.set_font('Nanum', '', 9)
+                pdf.set_text_color(120, 120, 120)
+                pdf.multi_cell(0, 6, txt="* 본 제안서는 입력된 기초 데이터를 바탕으로 산출된 예상 결과입니다.\n"
+                                         "* 실제 시공 가능 여부 및 최종 용량은 현장 실사(구조 진단 등) 후 확정됩니다.\n"
+                                         "* 임대 조건 및 계약 관련 세부 사항은 별도 협의에 따릅니다.")
 
-        except Exception as e:
-            st.error(f"오류가 발생했습니다: {e}")
+                pdf_bytes = pdf.output()
+                b64 = base64.b64encode(pdf_bytes).decode()
+                href = f'<a href="data:application/pdf;base64,{b64}" download="Solar_Proposal_{client_name}.pdf" style="text-decoration:none;"><button style="width:100%; padding:15px; background-color:#1E88E5; color:white; border:none; border-radius:10px; font-size:18px; cursor:pointer; font-weight:bold;">📥 전문 견적서 PDF 다운로드</button></a>'
+                st.markdown(href, unsafe_allow_html=True)
+                st.success(f"{current_now} 기준 견적서가 생성되었습니다.")
+
+            except Exception as e:
+                st.error(f"오류가 발생했습니다: {e}")
 else:
     st.info("좌측 또는 상단에서 분석할 사업 항목을 먼저 선택해 주세요.")
