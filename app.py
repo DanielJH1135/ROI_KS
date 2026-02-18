@@ -15,7 +15,7 @@ st.set_page_config(page_title="KS 에너지 수익 분석기", layout="wide")
 
 # 상단 제목
 st.title("☀️ 태양광 발전 사업 수익 분석 시스템")
-st.write("법인 영업을 위한 맞춤형 임대 수익 산출 도구입니다.")
+st.write("고객사를 위한 맞춤형 임대 수익 가산출 도구입니다.")
 
 # --- 1. 담당자 정보 입력 (사이드바) ---
 st.sidebar.header("🏢 담당자 정보")
@@ -143,3 +143,4 @@ if selected_items:
                 st.error(f"오류가 발생했습니다: {e}")
 else:
     st.info("좌측 또는 상단에서 분석할 사업 항목을 먼저 선택해 주세요.")
+
